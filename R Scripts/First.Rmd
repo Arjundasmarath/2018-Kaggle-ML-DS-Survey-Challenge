@@ -1,0 +1,1070 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+library('ggplot2') # visualisation
+library('scales') # visualisation
+library('grid') # visualisation
+library('gridExtra') # visualisation
+library('RColorBrewer') # visualisation
+library('corrplot') # visualisation
+
+# general data manipulation
+library('dplyr') # data manipulation
+library('readr') # input/output
+library('data.table') # data manipulation
+library('tibble') # data wrangling
+library('tidyr') # data wrangling
+library('stringr') # string manipulation
+library('forcats') # factor manipulation
+
+# specific visualisation
+library('alluvial') # visualisation
+library('ggrepel') # visualisation
+library('ggforce') # visualisation
+library('ggridges') # visualisation
+#library('gganimate') # animations
+library('gridExtra') # visualisation
+library('GGally') # visualisation
+library('ggExtra') # visualisation
+library('highcharter') # visualisation
+library('countrycode') # visualisation
+
+# specific data manipulation
+library('lazyeval') # data wrangling
+library('broom') # data wrangling
+library('purrr') # string manipulation
+library('reshape2') # data wrangling
+library('rlang') # encoding
+
+# Maps / geospatial
+library('geosphere') # geospatial locations
+library('leaflet') # maps
+#library('leaflet.extras') # maps
+library('maps') # maps
+
+options(warn = -1)
+
+
+```
+
+
+```{r}
+
+
+multiple <- as.tibble(fread(str_c("D:/kaggle/kaggle-survey-2018/multipleChoiceResponses.csv"), skip = 1))
+free <- as.tibble(fread(str_c("D:/kaggle/kaggle-survey-2018/freeFormResponses.csv"), skip = 1))
+
+
+
+```
+
+
+```{r}
+multiple <- multiple %>%
+  mutate_if(is_character, as_factor)
+
+vars <- c(gender = "What is your gender? - Selected Choice",
+          gen_txt = "What is your gender? - Prefer to self-describe - Text",
+          country = "In which country do you currently reside?",
+          age = "What is your age (# years)?")
+
+flvl <- c("18-21", "22-24","25-29","30-34","35-39","40-44","45-49","50-54","55-59","60-69","70-79","80+")
+
+multiple <- multiple %>%
+  rename(!!vars) %>%
+  mutate(age = fct_relevel(age, flvl))
+
+```
+
+
+```{r}
+rep <- multiple %>%
+  group_by(gender) %>%
+  count()
+
+p1 <- rep %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(gender, n, fill = gender)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Gender", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Gender imbalance")
+
+rep <- multiple %>%
+  group_by(age) %>%
+  count()
+
+p2 <- rep %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(age, n, fill = age)) +
+  geom_col() +
+  #geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Age Group", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=45, hjust=1, vjust=0.9)) +
+  ggtitle("Age Groups: Here be 20-somethings")
+
+p3 <- multiple %>%
+  filter(gender %in% c("Male", "Female")) %>%
+  ggplot(aes(age, fill = gender)) +
+  geom_bar(position = "fill") +
+  labs(x = "", y = "Percentage") +
+  ggtitle("Age by Gender: Younger generation relatively better")
+
+grid.arrange(p1, p2, p3, layout_matrix = rbind(c(1,1,2,2,2),
+                                               c(1,1,2,2,2),
+                                               c(1,1,2,2,2),
+                                               c(3,3,3,3,3),
+                                               c(3,3,3,3,3)))
+```
+
+
+```{r}
+multiple %>%
+  group_by(country) %>%
+  count() %>%
+  ungroup() %>%
+  ggplot(aes(reorder(country, n, FUN = min), n, fill = country)) +
+  geom_col() +
+  labs(x = "", y = "Number of Respondents") +
+  theme(legend.position = "none")  +
+  ggtitle("Country of Residence: US & India dominate") +
+  coord_flip()
+
+```
+
+
+
+# Country
+```{r}
+(hchart(multiple$country, colorByPoint = TRUE, name = "country") )
+
+
+
+```
+
+
+```{r}
+
+
+experience_levels <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30 +", "")
+multiple <- multiple %>% mutate(`How many years of experience do you have in your current role?` = fct_relevel(`How many years of experience do you have in your current role?`, experience_levels))
+
+
+foo <- multiple %>%
+  filter(country == "India") %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+p1 <- foo %>%
+  mutate(percentage = str_c(as.character(round(n/sum(foo$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Current Experience - India")
+
+foo <- multiple %>%
+  filter(country == "United States of America") %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+p2 <- foo %>%
+  mutate(percentage = str_c(as.character(round(n/sum(foo$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=45, hjust=1, vjust=0.9)) +
+  ggtitle("Current Experience - U.S ")
+
+foo <- multiple %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+p3 <- foo %>%
+  mutate(percentage = str_c(as.character(round(n/sum(foo$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=0.9, vjust=0.9)) +
+  ggtitle("Current Experience ")
+
+
+grid.arrange(p3,p1, p2)
+```
+
+
+
+# Current Role Experience  
+
+```{r}
+multiple%>%
+  count(`How many years of experience do you have in your current role?`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `How many years of experience do you have in your current role?`, y = n))
+
+
+```
+
+
+# Education Level
+```{r}
+multiple%>%
+  count(`What is the highest level of formal education that you have attained or plan to attain within the next 2 years?`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `What is the highest level of formal education that you have attained or plan to attain within the next 2 years?`, y = n))
+
+
+```
+
+
+# Education -Undergraduate Degree
+```{r}
+multiple%>%
+  count(`Which best describes your undergraduate major? - Selected Choice`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `Which best describes your undergraduate major? - Selected Choice`, y = n))
+
+
+```
+
+
+
+
+## Salary
+
+```{r}
+multiple%>%
+  count(`What is your current yearly compensation (approximate $USD)?`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `What is your current yearly compensation (approximate $USD)?`, y = n))
+
+
+```
+
+
+## Title
+
+```{r}
+multiple%>%
+  count(`Select the title most similar to your current role (or most recent title if retired): - Selected Choice`) %>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `Select the title most similar to your current role (or most recent title if retired): - Selected Choice`, y = n))
+
+
+```
+
+
+##Age
+```{r}
+multiple%>%
+  count(age)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = age, y = n))
+```
+
+## India - Age
+
+
+Hypothesis:- Age will not be  that a big factor. People of various ages starting from age of 22 to 50-yish will be actively participating.Because i have seen both School going and matured people who have been in the kaggle for the past 5+ years here.  
+
+```{r}
+
+p2 <- multiple %>%
+  filter(!is.na(first_lang)) %>%
+  mutate(first_lang = fct_relevel(first_lang, first_lang_lvl)) %>%
+  group_by(first_lang) %>%
+  count() 
+
+  # ggplot(aes(first_lang, n, fill = log10(n))) +
+  # geom_col() +
+  # # scale_fill_gradient(low = "#ffdf3f", high = "#5c46ff") +
+  # # scale_x_discrete(position = "top") +
+  # labs(x = "Recommended 1st DS language", y = "Responses") +
+  # # coord_flip() +
+  # theme(legend.position = "none")
+  # 
+  # 
+  # rep1 <- multiple %>%
+  #   filter(country == "India") %>%
+  #   group_by(`How many years of experience do you have in your current role?`) %>%
+  #   count()
+  
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(first_lang, n, fill = first_lang)) +
+    geom_col() +
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "Age", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("Age imbalance - India")
+  
+  
+  
+  
+  rep2 <- multiple %>%
+    filter(country == "United States of America") %>%
+    group_by(`How many years of experience do you have in your current role?`) %>%
+    count()
+  
+  p2<- rep2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+    ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+    geom_col() +
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "Age", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("Age imbalance- U.S")
+  
+  #p3 <- hchart(multiple$age, colorByPoint = TRUE, name = "age")
+  
+  
+  grid.arrange(p1, p2, layout_matrix = rbind(c(1,1,2,2,2),
+                                                 c(1,1,2,2,2),
+                                                 c(1,1,2,2,2),
+                                                 c(3,3,3,3,3),
+                                                 c(3,3,3,3,3)))
+
+```
+
+
+
+
+
+
+
+## Gender
+
+Hyp:- Its true that of whatever active people i have seen the proportion in women kagglers are less.I do wonder why is that so?Whereas there are sufficient  proportion of women participation in every other areas of IT industry.  
+
+```{r}
+multiple%>%
+  count(gender)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = gender, y = n))
+
+```
+
+ 
+
+```{r}
+rep1 <- multiple %>%
+  filter(country == "India") %>%
+  group_by(gender) %>%
+  count()
+
+ p1 <-rep1 %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(gender, n, fill = gender)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Gender", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Gender imbalance - India")
+
+
+
+
+rep2 <- multiple %>%
+  filter(country == "United States of America") %>%
+  group_by(gender) %>%
+  count()
+
+p2<- rep2 %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(gender, n, fill = gender)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Gender", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Gender imbalance- U.S")
+
+
+
+grid.arrange(p1, p2, layout_matrix = rbind(c(1,1,2,2,2),
+                                               c(1,1,2,2,2),
+                                               c(1,1,2,2,2),
+                                               c(3,3,3,3,3),
+                                               c(3,3,3,3,3)))
+
+```
+
+## Education Level 
+
+Hypothesis:- As i have already mentioned,there will be more number of school-going (pursuing graduation) than PHD holders, as this is more of a learning platform than anything else. As india have a high proportion of young people,the education level will also be in correlation with that.For U.S it should not be that case of India.
+
+# Education Level
+```{r}
+multiple%>%
+  count(`What is the highest level of formal education that you have attained or plan to attain within the next 2 years?`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `What is the highest level of formal education that you have attained or plan to attain within the next 2 years?`, y = n))
+
+
+```
+
+
+# Education -Undergraduate Degree
+```{r}
+multiple%>%
+  count(`Which best describes your undergraduate major? - Selected Choice`)%>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `Which best describes your undergraduate major? - Selected Choice`, y = n))
+
+
+```
+
+
+```{r}
+rep1 <- multiple %>%
+  filter(country == "India") %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+ p1 <-rep1 %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Current Experience - India")
+
+
+
+
+rep2 <- multiple %>%
+  filter(country == "United States of America") %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+p2<- rep2 %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Current Experience - U.S")
+
+rep1 <- multiple %>%
+  group_by(`How many years of experience do you have in your current role?`) %>%
+  count()
+
+ p3 <-rep1 %>%
+  mutate(percentage = str_c(as.character(round(n/sum(rep$n)*100,1)), "%")) %>%
+  ggplot(aes(`How many years of experience do you have in your current role?`, n, fill = `How many years of experience do you have in your current role?`)) +
+  geom_col() +
+  geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+  labs(x = "Current Experience", y = "Respondents") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+  ggtitle("Current Experience")
+
+
+grid.arrange(p3,p1,p2)
+
+
+
+
+```
+
+
+## Job Title 
+
+This is so confusing. The term "Data Science" and "DataScientist". The wide areas of fields datascientists works are in exponential.This makes it difficult to give a stable definition to the same. Its the same as that of over-hyped use of AI,it seems.For every other products, it is backed by AI !!!
+So, its not surprising if i say that there are datascientists with 1 year of work experience in the industry. Iam really excited to see what the world thinks.
+
+
+
+```{r}
+
+multiple%>%
+  count(`Select the title most similar to your current role (or most recent title if retired): - Selected Choice`) %>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `Select the title most similar to your current role (or most recent title if retired): - Selected Choice`, y = n))
+
+
+```
+
+
+
+```{r}
+
+multiple%>%
+  count(`Do you consider yourself to be a data scientist?`) %>%
+  arrange(n)%>%
+  hchart(type = "column", hcaes(x = `Do you consider yourself to be a data scientist?`, y = n))
+
+
+```
+
+
+```{r}
+library(treemap)
+
+library(viridisLite)
+
+data(GNI2014)
+
+tm <- treemap(multiple, index = c("continent", "iso3"),
+              vSize = "population", vColor = "GNI",
+              type = "value", palette = viridis(6))
+```
+
+```{r}
+leaflet(loan_themes_region) %>% addProviderTiles("Esri.NatGeoWorldMap") %>%
+  addCircles(lng = ~lon, lat = ~lat,radius = ~(amount/10) ,
+             color = ~c("red"))  %>%
+  # controls
+  setView(lng=0, lat=0,zoom = 2) 
+```
+
+```{r}
+
+experience_levels <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30 +", "")
+multiple <- multiple %>% mutate(experience = fct_relevel(`How many years of experience do you have in your current role?`, experience_levels))
+
+multiple %>% filter(`Select the title most similar to your current role (or most recent title if retired): - Selected Choice`!="Student" & `How many years of experience do you have in your current role?`!="") %>% count(`How many years of experience do you have in your current role?`) %>%
+        ggplot(aes(x=`How many years of experience do you have in your current role?`, y=n)) +
+        geom_col(fill="blue") +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+        labs(x="Years of experience in current role", y="Number of Respondents")
+
+```
+
+
+
+
+```{r}
+
+multiple <- multiple %>%
+        rename(Python_user = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Python",
+               R_user = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - R",
+               
+               industry = "In what industry is your current employer/contract (or your most recent employer if retired)? - Selected Choice",
+               
+               analyze_business = "Select any activities that make up an important part of your role at work: (Select all that apply) - Selected Choice - Analyze and understand data to influence product or business decisions",
+               machine_learning = "Select any activities that make up an important part of your role at work: (Select all that apply) - Selected Choice - Build and/or run a machine learning service that operationally improves my product or workflows",
+               prototype = "Select any activities that make up an important part of your role at work: (Select all that apply) - Selected Choice - Build prototypes to explore applying machine learning to new areas",
+               build_infrastructure = "Select any activities that make up an important part of your role at work: (Select all that apply) - Selected Choice - Build and/or run the data infrastructure that my business uses for storing, analyzing, and operationalizing data",
+               research_ml = "Select any activities that make up an important part of your role at work: (Select all that apply) - Selected Choice - Do research that advances the state of the art of machine learning",
+               years_code = "How long have you been writing code to analyze data?",
+               years_ML = "For how many years have you used machine learning methods (at work or in school)?",
+               Jupyter_iPython = "Which of the following integrated development environments (IDE's) have you used at work or school in the last 5 years? (Select all that apply) - Selected Choice - Jupyter/IPython",
+               RStudio = "Which of the following integrated development environments (IDE's) have you used at work or school in the last 5 years? (Select all that apply) - Selected Choice - RStudio",
+               most_often = "What specific programming language do you use most often? - Selected Choice",
+               tensorflow = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - TensorFlow",
+               keras = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Keras",
+               pytorch = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - PyTorch",
+               caret = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Caret",
+               scikit = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Scikit-Learn",
+              spark = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Spark MLlib",
+              h2o = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - H20",
+              fast_ai = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Fastai",
+              mxnet = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Mxnet",
+              xgboost = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Xgboost",
+              mlr = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - mlr",
+              prophet = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Prophet",
+              random_forest = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - randomForest",
+              lightgbm = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - lightgbm",
+              catboost = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - catboost",
+              cntk = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - CNTK",
+              caffe = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - Caffe",
+              no_ml_packages = "What machine learning frameworks have you used in the past 5 years? (Select all that apply) - Selected Choice - None",
+              ml_most_used = "Of the choices that you selected in the previous question, which ML library have you used the most? - Selected Choice",
+              degree = "What is the highest level of formal education that you have attained or plan to attain within the next 2 years?",
+              ggplot = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - ggplot2",
+              matplotlib = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Matplotlib",
+              altair = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Altair",
+              shiny = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Shiny",
+              d3 = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - D3",
+              plotly = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Plotly",
+              bokeh = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Bokeh",
+              seaborn = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Seaborn",
+              geoplotlib = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Geoplotlib",
+              leaflet = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Leaflet",
+              lattice = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - Lattice",
+              no_viz_libraries = "What data visualization libraries or tools have you used in the past 5 years? (Select all that apply) - Selected Choice - None",
+              viz_lib_used_most = "Of the choices that you selected in the previous question, which specific data visualization library or tool have you used the most? - Selected Choice",
+              salary = "What is your current yearly compensation (approximate $USD)?",
+              current_role = "Select the title most similar to your current role (or most recent title if retired): - Selected Choice",
+              experience = "How many years of experience do you have in your current role?",
+              Q48 = "Do you consider ML models to be \"\"black boxes\"\" with outputs that are difficult or impossible to explain?")
+
+```
+
+## Role and Country
+
+```{r}
+multiple$current_role <- str_trunc(as.character(multiple$current_role), width = 25, side="right")
+
+multiple$current_role <- as.factor(multiple$current_role)
+
+by_industry <- multiple %>% filter(country == "India" | country == "United States of America") %>% group_by(current_role) %>% count(country)
+
+
+top_industry <- by_industry %>% group_by(current_role) %>%
+        #filter(!industry %in% c("Other", "I am a student", "")) %>%
+        summarize(total=sum(n)) %>%
+        arrange(desc(total)) %>%
+        slice(1:15) %>%
+        arrange(total)
+
+c1 <- by_industry %>% filter(current_role %in% top_industry$current_role) %>%
+        ggplot(aes(x=current_role, y=n, fill=country)) +
+        geom_bar(stat="identity", position="dodge") + coord_flip() +
+        labs(x="", y="Number of Kagglers") +
+        scale_x_discrete(limits=top_industry$current_role) +
+        theme(legend.justification=c(1,0), legend.position=c(1,0)) +
+        theme(axis.text.y = element_text(size=8))
+
+c1
+```
+
+
+```{r}
+ggplot(mpg, aes(x = class, fill = drv)) + 
+  geom_bar(position = "fill")
+
+supermarket <- read_excel("Supermarket Transactions.xlsx", sheet = "Data")
+
+head(supermarket)
+
+```
+
+```{r}
+city_rev <- supermarket %>% group_by(City)%>%
+    summarise(Revenue = sum(Revenue,na.rm = TRUE)) %>%
+    arrange(Revenue)%>%
+    mutate(City = factor(City,levels = .$City))
+
+city_gender_rev <- supermarket %>%
+        group_by(City, Gender) %>%
+        summarise(Revenue = sum(Revenue, na.rm = TRUE)) %>%
+        ungroup() %>%
+        mutate(City = factor(City, levels = city_rev$City))
+
+ #df <- multiple %>% select(experience,current_role,country)
+ 
+  df1 <-multiple %>% group_by(current_role,experience)%>%
+      filter(country == "India" | country == "United States of America") %>%
+      count(country)%>%
+      # summarize(total=n) %>%
+       arrange(desc(n)) 
+      # slice(1:15) %>%
+      # arrange(total)
+    
+ggplot(df1, aes(current_role, n)) +
+        geom_bar(stat = "identity") +
+        coord_flip()
+  
+  
+# ggplot(top_industry, aes(current_role, total)) +
+#         geom_bar(stat = "identity") +
+#         coord_flip()
+    
+```
+
+
+## Industry of your current employer 
+
+Student category most in both india and US
+```{r}
+
+  df3<-multiple %>% group_by(industry,experience)%>%
+      filter(country == "India" | country == "United States of America") %>%
+      count(country)%>%
+      # summarize(total=n) %>%
+       arrange(desc(n)) 
+
+# ggplot(city_gender_rev, aes(City, Revenue, fill = Gender)) +
+#         geom_bar(stat = "identity") +
+#         coord_flip()
+
+ggplot(df3, aes(x = reorder(industry, n),y= n, fill = country)) +
+        geom_bar(stat = "identity",position = "dodge") +
+        coord_flip()+
+        facet_wrap(~ country)
+
+```
+
+##Success - current role vs experience - will do india and america differently.
+
+
+```{r}
+
+experience_levels <- c("0-1", "1-2", "2-3", "3-4", "4-5", "5-10", "10-15", "15-20", "20-25", "25-30", "30 +", "")
+multiple <- multiple %>% mutate(experience = fct_relevel(experience, experience_levels))
+
+  df1 <-multiple %>% group_by(current_role,experience)%>%
+      filter(country == "India" ) %>%
+      count(country)%>%
+      # summarize(total=n) %>%
+       arrange(desc(n)) 
+  
+    df2 <-multiple %>% group_by(current_role,experience)%>%
+      filter(country == "United States of America" ) %>%
+      count(country)%>%
+      arrange(desc(n)) 
+
+
+
+p1 <- ggplot(df1, aes(reorder(current_role, n),n, fill = experience)) +
+                scale_fill_manual(values = c("#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0", "#a1d99b", "#a1d99b","#a1d99b","#a1d99b","#31a354","#31a354","#31a354","#31a354")) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_minimal() +
+        ggtitle("India")
+p2 <- ggplot(df2, aes(reorder(current_role, n),n, fill = experience)) +
+        scale_fill_manual(values = c("#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0", "#a1d99b", "#a1d99b","#a1d99b","#a1d99b","#31a354","#31a354","#31a354","#31a354")) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_minimal() +
+        ggtitle("USA")
+#grid.arrange(p1,p2,ncol =2)
+p1
+p2
+
+```
+
+
+
+
+##End of one
+
+```{r}
+p1 <- ggplot(mtcars, aes(x = reorder(row.names(mtcars), mpg), y = mpg, fill = factor(cyl))) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_minimal() +
+        ggtitle("Fig. A: Default fill colors")
+
+# p1 <- ggplot(df1, aes(x = reorder(row.names(current_role), n), y = n, fill = (country))) +
+#         geom_bar(stat = "identity") +
+#         coord_flip() +
+#         theme_minimal() +
+#         ggtitle("Fig. A: Default fill colors")
+
+p2 <- ggplot(mtcars, aes(x = reorder(row.names(mtcars), mpg), y = mpg, fill = factor(cyl))) +
+        scale_fill_manual(values = c("#e5f5e0", "#a1d99b", "#31a354")) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        theme_minimal() +
+        ggtitle("Fig. B: Manually set fill colors")
+
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+
+
+
+```{r}
+cars <- mtcars %>%
+        mutate(Make = row.names(mtcars),
+               ID = ifelse(Make == "Fiat X1-9", TRUE, FALSE))
+
+ggplot(cars, aes(reorder(Make, mpg), mpg, fill = ID)) +
+        geom_bar(stat = "identity") +
+        coord_flip() +
+        scale_fill_manual(values = c("grey90", "dodgerblue")) +
+        annotate("text", x = "Fiat X1-9", y = 22, label = "mpg = 27.3", color = "white") +
+        theme_minimal() +
+        theme(legend.position = "none")
+```
+
+## Part 2
+
+
+```{r}
+vars <- c(lang =  "most_often",
+          first_lang = "What programming language would you recommend an aspiring data scientist to learn first? - Selected Choice",
+          lang_py = "Python_user",
+          lang_r = "R_user",
+          lang_sql = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - SQL",
+          lang_jula = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Julia",
+          lang_bash = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Bash",
+          lang_java = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Java",
+          lang_js = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Javascript/Typescript",
+          lang_vs = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Visual Basic/VBA",
+          lang_c = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - C/C++",
+          lang_matlab = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - MATLAB",
+          lang_scala = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Scala",
+          lang_go = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Go",
+          lang_sharp = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - C#/.NET",
+          lang_php = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - PHP",
+          lang_ruby = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Ruby",
+          lang_sas = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - SAS/STATA",
+          lang_other = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - Other",
+          no_lang = "What programming languages do you use on a regular basis? (Select all that apply) - Selected Choice - None")
+
+multiple <- multiple %>%
+  rename(!!vars) %>%
+  mutate(lang = na_if(lang, ""),
+         first_lang = na_if(first_lang, ""),
+         no_lang = na_if(no_lang, "")) %>%
+  mutate_at(vars(starts_with("lang_")), as.integer) %>%
+  mutate_at(vars(starts_with("lang_")), log) %>%
+  mutate_at(vars(starts_with("lang_")), as.logical)
+
+
+
+lang_lvl <- multiple %>%
+  filter(!is.na(lang)) %>%
+  mutate(lang = as.character(lang)) %>%
+  count(lang) %>%
+  arrange(desc(n)) %>%
+  .$lang
+
+first_lang_lvl <- multiple %>%
+  filter(!is.na(first_lang)) %>%
+  mutate(first_lang = as.character(first_lang)) %>%
+  count(first_lang) %>%
+  arrange(n) %>%
+  .$first_lang
+
+
+```
+
+
+```{r}
+p1 <- multiple %>%
+  filter(!is.na(lang)) %>%
+  mutate(lang = fct_relevel(lang, lang_lvl)) %>%
+  group_by(lang) %>%
+  count() %>%
+  ggplot(aes(lang, n, fill = log10(n))) +
+  geom_col() +
+  scale_fill_gradient(low = "#ffdf3f", high = "#5c46ff") +
+  scale_x_discrete(position = "top") +
+  labs(x = "Most used language", y = "Responses") +
+  theme(legend.position = "none", axis.text.x  = element_text(angle=35, hjust=0, vjust=0.9))
+
+p2 <- multiple %>%
+  filter(!is.na(first_lang)) %>%
+  mutate(first_lang = fct_relevel(first_lang, first_lang_lvl)) %>%
+  group_by(first_lang) %>%
+  count() %>%
+  ggplot(aes(first_lang, n, fill = log10(n))) +
+  geom_col() +
+  # scale_fill_gradient(low = "#ffdf3f", high = "#5c46ff") +
+  # scale_x_discrete(position = "top") +
+  labs(x = "Recommended 1st DS language", y = "Responses") +
+  # coord_flip() +
+  theme(legend.position = "none")
+
+
+p3 <- multiple %>%
+  filter(!is.na(lang) & !is.na(first_lang)) %>%
+  group_by(lang, first_lang) %>%
+  count() %>%
+  ungroup() %>%
+  mutate(lang = fct_relevel(lang, lang_lvl),
+         first_lang = fct_relevel(first_lang, first_lang_lvl)) %>%
+  ggplot(aes(lang, first_lang, fill = log10(n))) +
+  geom_tile() +
+  scale_fill_gradient(low = "#ffdf3f", high = "#5c46ff") +
+  geom_text(aes(lang, first_lang, label = n), color = "black", size = 2.5) +
+  theme(legend.position = "none",
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        plot.margin=unit(c(0.18,0.2,0.57,1.05),"cm")) +
+  labs(x = "", y = "")
+
+p4 <- tibble(a = 1, b = 1) %>%
+  ggplot(aes(a,b)) +
+  geom_text(aes(a,b), size = 6,
+            label = "Primary language vs \n recommended 1st \nlanguage for DS: \nPython dominates") +
+  theme_void() +
+  labs(x = "", y = "")
+
+grid.arrange(p1, p2, p3, p4, layout_matrix = rbind(c(1,1,4),
+                                               c(1,1,4),
+                                               c(1,1,4),
+                                               c(3,3,2),
+                                               c(3,3,2),
+                                               c(3,3,2),
+                                               c(3,3,2)))
+```
+
+## Common Language 
+
+
+```{r}
+
+   p2 <- multiple %>%
+    filter(!is.na(first_lang)) %>%
+    mutate(first_lang = fct_relevel(first_lang, first_lang_lvl)) %>%
+    group_by(first_lang) %>%
+    count() 
+
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(first_lang, n, fill = factor(first_lang))) +
+    scale_fill_manual(values = c("#e5f5e0","#e5f5e0" , "#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#a1d99b","#a1d99b","#31a354")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "Age", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("Visualization lib")+ labs(title = "Distribution of most common languages used",
+             subtitle = "The percentage of Python users is a whopping 75%,clearly leading the pack.R language has \nbeen the next option for the ML lovers with a 12.5% users.")
+   
+   p1
+   
+   
+   
+```
+
+
+
+
+# Visualization library
+
+```{r}
+
+   p2 <- multiple %>%
+    group_by(viz_lib_used_most) %>%
+    count() 
+
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(viz_lib_used_most, n, fill = factor(viz_lib_used_most))) +
+    scale_fill_manual(values = c("#e5f5e0","#31a354","#31a354","#a1d99b","#a1d99b","#e5f5e0","#e5f5e0" , "#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#a1d99b","#a1d99b")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "Age", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("Visualization libraries used")+labs(title = "Distribution of most common visualization libraries used",
+             subtitle = "The percentage of Matplotlib library users is 28%,16% higher than the famous ggplot library of R. \nAlmost half of the respondents doesn't care to respond to the question.They don't visualize,i guess ")
+   
+   p1
+   
+   
+   
+```
+
+
+## First_lang to study? - An approach to go through
+
+```{r}
+p2 <- multiple %>%
+    group_by(first_lang) %>%
+    count() 
+
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(reorder(first_lang, n),n, fill = factor(first_lang))) +
+    scale_fill_manual(values = c("#31a354","#31a354","#31a354","#a1d99b","#a1d99b","#e5f5e0","#e5f5e0" , "#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "Languages", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("First language ")+labs(title = "Distribution of most common visualization libraries used",
+             subtitle = "About 60% of respondents thinks Python will be the best language to start off things.\n Statistical computing software R comes in the second position with 10%.")
+   
+   p1
+```
+
+# ML libraries used
+
+
+```{r}
+ml_columns <- c("tensorflow", "keras", "pytorch", "caret", "scikit", "spark", "h2o", "fast_ai", "mxnet", "xgboost", "mlr", "prophet", "random_forest", "lightgbm", "catboost", "cntk", "caffe", "no_ml_packages")
+
+ml <- multiple %>% select(!!ml_columns) %>% gather(key=package) %>%
+        group_by(package) %>% count(value) %>% filter(value!="")
+
+ml %>%
+        ggplot(aes(x=reorder(value, n), y=n, fill=value)) +
+        scale_fill_manual(values = c("#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0","#e5f5e0", "#a1d99b","#a1d99b","#a1d99b","#a1d99b","#a1d99b","#a1d99b", "#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#e5f5e0")) +
+        geom_bar(stat="identity") + coord_flip() +
+        geom_text(aes(label=n), hjust=-0.1, nudge_y = -2, color = "black") +
+        theme(legend.position = "none") + labs(x="", y="")
+```
+
+#Activities that make up an important part of your role
+```{r}
+role_columns <- c("analyze_business", "machine_learning", "prototype", "build_infrastructure", "research_ml")
+
+role <- multiple %>% select(!!role_columns) %>% gather(key=package) %>%
+        group_by(package) %>% count(value) %>% filter(value!="")
+
+role %>%
+        ggplot(aes(x=reorder(value, n), y=n, fill=value)) +
+        scale_fill_manual(values = c( "#31a354","#31a354","#31a354","#31a354","#31a354")) +
+        geom_bar(stat="identity") + 
+        geom_text(aes(label=n), hjust=-0.1, nudge_y = -2, color = "black") +
+        theme(legend.position = "none") + labs(x="", y="") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=25, hjust=1, vjust=0.9)) 
+```
+
+## Years ML
+
+```{r}
+p2 <- multiple %>%
+    group_by(years_ML) %>%
+    count() 
+
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(reorder(years_ML, n),n, fill = factor(years_ML))) +
+    scale_fill_manual(values = c("#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#e5f5e0")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("First language ")+labs(title = "Years of ML experience",
+             subtitle = "About 26% of the respondents are still having experience less than 1 year and \n 20% of proportion were having experience range of 1-2. While 22% skipped the question.")
+   
+   p1
+```
+
+
+## Yrs of Coding Experience
+
+```{r}
+p2 <- multiple %>%
+    group_by(years_code) %>%
+    count() 
+
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(reorder(years_code, n),n, fill = factor(years_code))) +
+    scale_fill_manual(values = c("#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#a1d99b")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle("")+labs(title = "Years of coding experience",
+             subtitle = "About 23% of the respondents are  having experience between 1-2 year in coding  and \n about 19% of proportion were having less than 1yr of experience. While 22% skipped the question.")
+   
+   p1
+```
+
+
+## Most Ml Used library
+```{r}
+p2 <- multiple %>%
+    group_by(ml_most_used) %>%
+    count() 
+   
+   p1 <-p2 %>%
+    mutate(percentage = str_c(as.character(round(n/sum(p2$n)*100,1)), "%")) %>%
+    ggplot(aes(reorder(ml_most_used, n),n, fill = factor(ml_most_used))) +
+    scale_fill_manual(values = c("#a1d99b","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354","#31a354")) +
+    geom_col() +   
+    geom_label(aes(label = percentage), position = position_dodge(width = 1)) +
+    labs(x = "", y = "Respondents") +
+    theme(legend.position = "none", axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9)) +
+    ggtitle(" ")+labs(title = "Common Ml Library",
+             subtitle = "Tensorflow - It is an open source artificial intelligence library, using data flow graphs to build models.\nIt allows developers to create large-scale neural networks with many layers.\nScikit-learn - features various classification, regression and clustering algorithms.Keras is an open source neural network library written in Python.\nIts surprising to see random forest library up there above xgboost.")
+   
+   p1
+```
